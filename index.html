@@ -1,0 +1,103 @@
+<html>
+
+<head>
+    <title>Siyu: a chat bot talking in movies.</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/universal-sentence-encoder"></script>
+</head>
+
+<body class="d-flex h-100 text-center text-black bg-white">
+    <div class="cover-container d-flex justify-content-center w-100 h-100 p-3 mx-auto flex-column">
+        <main class="px-5">
+            <h1 id="status">Movie Dialogue Bot</h1>
+            <input id="question" type="text" class="form-control" placeholder="how are you?">
+            <h1 id="bot-text"></h1>
+            <button id="send" class="w-25 btn btn-primary btn-lg">Send </button>
+        </main>
+    </div>
+
+    <script>
+        function setText(text) {
+            document.getElementById("status").innerText = text;
+        }
+
+        // Copied from Universal Sentence Encoder lite https://github.com/tensorflow/tfjs-models/tree/master/universal-sentence-encoder
+        // Calculate the dot product of two vector arrays.
+        const dotProduct = (xs, ys) => {
+            const sum = xs => xs ? xs.reduce((a, b) => a + b, 0) : undefined;
+
+            return xs.length === ys.length ?
+                sum(zipWith((a, b) => a * b, xs, ys))
+                : undefined;
+        }
+
+        // zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
+        const zipWith =
+            (f, xs, ys) => {
+                const ny = ys.length;
+                return (xs.length <= ny ? xs : xs.slice(0, ny))
+                    .map((x, i) => f(x, ys[i]));
+            }
+
+        (async () => {
+            let movie_lines = await fetch("source/movie_lines.txt").then(l => l.text());
+
+            let sentence_lines = {};
+            movie_lines.split("\n").forEach(s => {
+                sentence_lines[s.split(" +++$+++ ")[0]] = s.split(" +++$+++ ")[4];
+            });
+
+            let Q = [];
+            let responses = [];
+            let conversations = await fetch("source/movie_conversations.txt").then(l => l.text());
+            conversations.split("\n").forEach(c => {
+                if (c.split(" +++$+++ ")[3]) {
+                    let phrases = c.split(" +++$+++ ")[3].replace(/[^L0-9 ]/gi, "").split(" ").filter(x => !!x); // Split & remove empty lines
+                    for (let i = 0; i < phrases.length - 1; i++) {
+                        Q.push(sentence_lines[phrases[i]]);
+                        responses.push(sentence_lines[phrases[i + 1]]);
+                    }
+                }
+            });
+
+            // Load the Universal Sentence Encoder
+            setText("Loading ...");
+            let encoder = await use.load();
+            setText("I talk movie scripts!");
+            const model = await use.loadQnA();
+            
+            // hit "Enter" key
+            document.getElementById("question").addEventListener("keyup", function (event) {
+                if (event.keyCode === 13) {
+                    event.preventDefault();
+                    document.getElementById("send").click();
+                }
+            });
+
+            // hit "Send" button
+            document.getElementById("send").addEventListener("click", async function (event) {
+                let q = document.getElementById("question").value;
+                document.getElementById("question").value = "";
+
+                // embed inputs
+                let final = await model.embed({
+                    queries: [q],
+                    responses: Q.slice(Math.floor(Math.random() * Q.length), 200)
+                });
+                tf.tidy(() => {
+                    let rating = [];
+                    final["responseEmbedding"].arraySync().forEach(response => {
+                        rating.push(dotProduct(final["queryEmbedding"].arraySync()[0], response));
+                    });
+                    document.getElementById("bot-text").innerText = responses[Math.floor(Math.random() * Q.length) + rating.indexOf(Math.max(...rating))];
+                });
+                final.queryEmbedding.dispose();
+                final.responseEmbedding.dispose();
+            });
+        })();
+    </script>
+</body>
+
+</html>

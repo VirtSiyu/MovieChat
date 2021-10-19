@@ -1,0 +1,8 @@
+This project aims to build a chatbot that talks like movie charactors.
+
+Universal Sentence Encoder is used to generate the appropriate response to user's input.
+https://github.com/tensorflow/tfjs-models/tree/master/universal-sentence-encoder
+USE encodes text into high-dimensional vector to classify.
+
+Bootstrap is uased in this website for the front-end design and aesthetics. 
+It guarantees that the webpage works on both laptop and mobile devices.
